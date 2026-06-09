@@ -10,7 +10,7 @@ This project details the architectural blueprint for a book designed to teach sy
 
 Rather than building an emulator from scratch through a blind process of trial-and-error, this book begins with a verified, fully operational production asset: a 6502-based Apple II emulator written in native C++ (located within the `./apple2-emulator-cpp` subdirectory). This emulator was successfully synthesized with the assistance of Gemini, navigating the typical architectural pitfalls, timing mismatches, and hardware edge cases common to systems emulation.
 
-The core educational philosophy of this curriculum is **Deconstruction**. We systematically disassemble a monolithic, fully working artifact into 10 structured, bite-sized, and highly didactic chapters. By starting with a known-good baseline, students avoid the existential frustration of debugging compound bugs across multiple unverified hardware subsystems (e.g., debugging an invalid CPU instruction handler while simultaneously diagnosing an unmapped memory bus error).
+The core educational philosophy of this curriculum is **Deconstruction**. We systematically disassemble a monolithic, fully working artifact into 16 structured, bite-sized, and highly didactic chapters. By starting with a known-good baseline, students avoid the existential frustration of debugging compound bugs across multiple unverified hardware subsystems (e.g., debugging an invalid CPU instruction handler while simultaneously diagnosing an unmapped memory bus error).
 
 Provide Code snapshot for each chapter.  So that students can feel like joy of building software.
 
@@ -84,14 +84,63 @@ Provide Code snapshot for each chapter.  So that students can feel like joy of b
     * **State Inspection Panel:** Real-time printing of registry values (`A`, `X`, `Y`, `PC`, `S`) and condition flags to stdout or an auxiliary UI panel.
     * **Memory Hex-Dumper:** Creating hooks to read full pages of virtual system RAM during runtime execution to track real-time changes inside the Zero-Page.
 
+### Chapter 11: Audio Subsystem (The Apple II Speaker)
+* **Core Objective:** Implement the physical audio generation hardware, enabling classic retro game clicks, ticks, and multi-tone signals.
+* **The Physics of Sound:** Understanding how a physical speaker cone toggles between high and low voltage states to create sound waves.
+* **Implementation Mechanics:**
+    * Intercepting Memory-Mapped I/O (MMIO) reads and writes at `$C030`.
+    * Implementing cycle-accurate timing updates to track when toggles occur relative to the audio sample rate (e.g., 44.1 kHz).
+    * Using the **SDL2 Audio API** (`SDL_QueueAudio`) to synthesize and play a clean square wave based on the emulated speaker state transitions.
+
+### Chapter 12: Low-Resolution Graphics Mode (GR) & Mixed Mode
+* **Core Objective:** Implement the Low-Resolution (GR) graphics mode, enabling 40x48 color blocks or 40x40 blocks with 4 lines of text.
+* **Shared Memory Architecture:** Understanding how Text Page 1 and LORES Page 1 share the same memory space ($0400 to $07FF) and how the video generator interprets bytes differently based on soft switches.
+* **Implementation Mechanics:**
+    * Intercepting Video Soft Switches ($C050 to $C057) in the Bus.
+    * Implementing the 16-color LORES palette.
+    * Rendering vertically stacked color blocks (lower/upper nibbles) and integrating mixed-mode screen splitting.
+
+### Chapter 13: High-Resolution Graphics Mode (HGR) & Mixed Mode
+* **Core Objective:** Implement the High-Resolution (HGR) graphics mode, enabling 280x192 pixels with a unique 6-color palette.
+* **NTSC Color Artifacts:** Understanding how monochrome dot patterns on a grid generate color on NTSC displays based on horizontal position and color-delay bits.
+* **Implementation Mechanics:**
+    * Resolving 3-level interleaved HGR memory addressing (8KB Page 1 starting at $2000).
+    * Reconstructing pixel bitstreams and emulating color artifact generation rules.
+    * Using SDL scaling (`SDL_BlitScaled`) to stretch the 280x192 HGR buffer to fit our 320x192 display.
+
+### Chapter 14: High-Resolution Graphics Page 2 (HGR2) & Soft Switch Display Routing
+* **Core Objective:** Implement the second High-Resolution graphics page (HGR2) and establish complete display routing using hardware soft switches.
+* **Double Buffering Concepts:** Introduce double buffering and page-flipping mechanics to prevent screen tearing in graphical systems.
+* **Implementation Mechanics:**
+    * Modeling Page 2 memory ranges: Text/Lores Page 2 at `$0800-$0BFF` and HGR Page 2 at `$4000-$5FFF`.
+    * Implementing dynamic page offsets inside the `Video` subsystem based on the state of the `$C054`/`$C055` (PAGE1/PAGE2) switches.
+    * Developing an interactive keyboard-controlled dashboard to manually flip between display pages, graphics modes, and screen layouts.
+
+### Chapter 15: The Clean Emulator Playground & Custom 6502 Execution
+* **Core Objective:** Assemble all hardware subsystems into a pristine, fully integrated emulator boot environment ready for user-written 6502 assembly or Applesoft BASIC code.
+* **The Sandbox Philosophy:** Moving from synthetic, C++-driven testing frameworks to a pure emulation loop, allowing the emulated system's CPU and ROM to control hardware registers organically.
+* **Implementation Mechanics:**
+    * Restoring clean, unmapped keyboard event handlers routing standard typing straight into the emulated Apple II keyboard strobe.
+    * Removing all visual memory pre-populators (C++ text or graphic writes) and cold-booting directly to the Applesoft BASIC prompt.
+    * Formulating documentation and tutorials for students to write their own 6502 graphics routines in the emulated System Monitor to test HGR2.
+
+### Chapter 16: Floppy Disk Subsystem & HLE Booting
+* **Core Objective:** Implement a virtual floppy disk drive and a High-Level Emulation (HLE) of the Disk II Slot 6 bootloader to load and run `SNAKEBYTE.DSK`.
+* **Hardware Concepts Detailed:**
+    * **Stepper Motors:** Modeling stepper phase controls (`$C0E0-$C0E7`) to track head movement and track positioning.
+    * **Sector Interleaving:** Resolving physical-to-logical sector skewing to map `.dsk` file offsets.
+* **Implementation Mechanics:**
+    * Downcasting SystemBus in `CPU6502` to interface directly with `DiskDrive` during boot routines.
+    * Implementing HLE intercepts at `$C600` (load sector 0 to `$0800` and boot) and `$C65C` (sector read).
+    * Setting up peripheral Slot 6 ROM signatures in the memory backplane.
+
 ---
 
 ## 3. Future Enhancements & Subsystem Expansion
-Once the baseline 10-chapter architecture is completely operational, the book introduces supplemental modules to expand the fidelity of the emulator:
+Once the baseline 16-chapter architecture is completely operational, the book introduces supplemental modules to expand the fidelity of the emulator:
 
-1.  **Audio Subsystem (The Apple II Speaker):** Capturing explicit toggle writes to memory address `$C030`. Converting these erratic software state toggles into square-wave audio frequencies using the `SDL_QueueAudio` API to reproduce classic retro game clicks, ticks, and multi-tone signals.
-2.  **Storage Subsystem (Disk II Controller):** Emulating the structural wonders of Steve Wozniak's Disk II controller card. Implementing the state machine for the Group Code Recording (GCR) format, parsing `.do` or `.dsk` virtual floppy images, tracking virtual step motors, and streaming sector data directly into RAM via slots.
-3.  **Expansion Slots & Peripheral Emulation:** Modeling the classic 8-slot physical backplane configuration ($C100–$C7FF) to allow modular additions like 80-column text cards or mockingsound engines.
+1.  **Storage Subsystem (Disk II Controller):** Emulating the structural wonders of Steve Wozniak's Disk II controller card. Implementing the state machine for the Group Code Recording (GCR) format, parsing `.do` or `.dsk` virtual floppy images, tracking virtual step motors, and streaming sector data directly into RAM via slots.
+2.  **Expansion Slots & Peripheral Emulation:** Modeling the classic 8-slot physical backplane configuration ($C100–$C7FF) to allow modular additions like 80-column text cards or mockingsound engines.
 
 ---
 
@@ -116,5 +165,5 @@ So, let's remake Version 2 (./v2), based on Version 1.  But, this time, presenta
 ===
 # Version 2 was made.  (./v2)
 
-Version 2 is complete! We have migrated the presentation layer in chapters 6, 8, 9, and 10 from terminal headless operations to true hardware-accelerated SDL2 window outputs with high-fidelity video rasterization, fulfilling the original pedagogy of building an actual emulated computing visual interface.
+Version 2 is complete! We have migrated the presentation layer in chapters 6, 8, 9, and 10 from terminal headless operations to true hardware-accelerated SDL2 window outputs with high-fidelity video rasterization, and extended the book to **Chapter 16** by implementing HGR2 Page 2 soft-switch display routing and building a pristine custom program playground, fulfilling the original pedagogy of building an actual emulated computing visual interface. We have also added a hybrid HLE/LLE floppy disk controller mapping stepper motor phase head-seeking and sector interleaving, enabling the emulator to boot real 140KB floppy disk games like `SNAKEBYTE.DSK`.
 
