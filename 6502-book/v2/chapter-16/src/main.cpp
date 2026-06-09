@@ -145,8 +145,17 @@ int main(int argc, char* argv[]) {
 
     // Emulate 1.023 MHz (approx 17000 cycles per 60Hz frame)
     const int CYCLES_PER_FRAME = 17050; 
+    
+    // Emulation speed factor (1.0 = normal 1.023 MHz, 0.5 = half speed, etc.)
+    const float EMULATION_SPEED = 1.0f; 
+    //const float EMULATION_SPEED = 0.7f; 
+    
+    const int TARGET_FPS = 60;
+    const int TARGET_FRAME_TIME = 1000 / TARGET_FPS;
+    uint32_t frameStart;
 
     while (!quit) {
+        frameStart = SDL_GetTicks();
         while (SDL_PollEvent(&e) != 0) {
             if (e.type == SDL_QUIT) {
                 std::cout << "[Emulator Debug] Received SDL_QUIT event." << std::endl;
@@ -199,7 +208,7 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        cpu.execute(CYCLES_PER_FRAME); 
+        cpu.execute(CYCLES_PER_FRAME * EMULATION_SPEED); 
         speaker.flush(bus.getSystemCycles());
         video.update(backbuffer);
 
@@ -207,6 +216,11 @@ int main(int argc, char* argv[]) {
         SDL_RenderClear(renderer);
         SDL_RenderCopy(renderer, texture, NULL, NULL);
         SDL_RenderPresent(renderer);
+
+        int frameTime = SDL_GetTicks() - frameStart;
+        if (frameTime < TARGET_FRAME_TIME) {
+            SDL_Delay(TARGET_FRAME_TIME - frameTime);
+        }
     }
 
     std::cout << "Shutting down emulator." << std::endl;
